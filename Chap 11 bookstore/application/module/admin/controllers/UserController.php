@@ -1,0 +1,112 @@
+<?php
+    class UserController extends Controller{
+        public function __construct($arrParams){
+            parent::__construct($arrParams);
+            $this->_templateObj->setFolderTemplate('admin/main/');
+            $this->_templateObj->setFileTemplate('index.php');
+            $this->_templateObj->setFileConfig('template.ini');
+            $this->_templateObj->load();
+        }
+        
+        // Hiển thị danh sách group 
+        public function indexAction(){
+            $this->_view->_title = 'User Manager:: List';
+            $totalItem = $this->_model->countItem($this->_arrParam,null); // tính tổng số
+            //PAGINATION
+            //Có thể thay đổi được
+            $configPagination = array(
+                                'totalItemsPerPage'=>3,
+                                'pageRange'=>2,
+                            );
+            $this->setPagination($configPagination);
+            $this->_view->pagination    = new Pagination($totalItem, $this->_pagination);
+            $this->_view->slbGroup      = $this->_model->itemInSelectBox($this->_arrParam);
+            $this->_view->Items         = $this->_model->listItem($this->_arrParam,null);
+            $this->_view->render('user/index');
+        }
+        // ACTION : ADD GROUP & EDIT 
+        public function formAction(){
+            $this->_view->_title = 'User Manager:: List : Add';
+            $this->_view->slbGroup      = $this->_model->itemInSelectBox($this->_arrParam);
+            
+            if(isset($this->_arrParam['id'])){
+                $this->_view->_title = 'User Manager:: List: Edit';
+                //lấy thông tin id
+                $this->_arrParam['form'] = $data = $this->_model->infoItem($this->_arrParam);
+                if(empty($this->_arrParam['form'])) URL::redirect( 'admin', 'user','index');
+            }
+            if(isset($this->_arrParam['form']['token']) &&$this->_arrParam['form']['token'] > 0){
+                $task           = 'add';
+                $requirePass    = true; // khi edit sẽ ko validate pass
+                $source         = $this->_arrParam['form'];
+                $queryUsername  = "SELECT `id` FROM `user` WHERE `username`='" . $this->_arrParam['form']['username'] . "'";
+                $queryEmail     = "SELECT `id` FROM `user` WHERE `email`='" . $this->_arrParam['form']['email'] . "'";
+                if(isset($this->_arrParam['form']['id'])){
+                    $task = 'edit';
+                    $requirePass = false;
+                    $queryUsername  .= " AND `id` <> '" . $this->_arrParam['form']['id'] . "'";
+                    $queryEmail     .= " AND `id` <> '" . $this->_arrParam['form']['id'] . "'";
+
+                }
+                
+                $validate       = new Validate($source);
+                $validate->addRule('username', 'stringnotExistRecord', array('database'=>$this->_model, 'query'=>$queryUsername, 'min'=>3,'max'=>25))
+                            ->addRule('email', 'emailnotExistRecord', array('database'=>$this->_model, 'query'=>$queryEmail))
+                            ->addRule('password','password', array('action'=>$task), $requirePass)
+                            ->addRule('ordering', 'int', array('min' => 1, 'max' => 100))
+                            ->addRule('status', 'status', array('deny' => array('default')))
+                            ->addRule('group_id', 'status', array('deny' => array('default')));
+                        //deny là tập hợp giá trị ko hợp lệ
+                $validate->run();
+                $this->_arrParam['form'] = $validate->getResult();
+                if($validate->isValid() == false){
+                    $this->_view->errors =$validate->showErrors();
+                }else{
+                    //Ở đây nhận ra rằng khi ta thực hiện edit thì sẽ có id còn ko thì ko có
+                     $task = ( isset($this->_arrParam['form']['id'])) ? 'edit' : 'add';
+                     //die();
+                    $id = $this->_model->saveItem($this->_arrParam,array('task'=>$task));
+                    $type = $this->_arrParam['type'];
+                   if($type == 'save-close'){
+                        URL::redirect( 'admin', 'user','index');
+                   }else if ($type  == 'save-new'){
+                        URL::redirect( 'admin', 'user','form');
+                   }else if($type   == 'save'){
+                        URL::redirect( 'admin', 'user','form',array('id'=>$id));
+                   }
+                }
+
+            }
+            $this->_view->arrParam = $this->_arrParam;
+            $this->_view->render('user/form');
+        }
+        public function logoutAction(){
+            $this->_view->setTitle('Logout');
+            $this->_view->render('user/logout');
+        }
+        //Hàm changeStatus sẽ gọi hàm bên model (*)
+        public function ajaxStatusAction(){
+            $result = $this->_model->changeStatus($this->_arrParam,array('task'=>'change-ajax-status'));
+            echo json_encode($result);
+        }
+        //AJAX GROUP ACP (*)
+        public function ajaxACPAction(){ 
+            $result = $this->_model->changeStatus($this->_arrParam,array('task'=>'change-ajax-group-acp'));
+            echo json_encode($result);
+        }
+         //ACTION STATUS 
+         public function statusAction(){
+            $this->_model->changeStatus($this->_arrParam,array('task'=>'change-status'));
+            URL::redirect( 'admin', 'user','index');
+        }
+         //ACTION TRASH (*)
+        public function trashAction(){
+            $this->_model->deleteItem($this->_arrParam);
+            URL::redirect( 'admin', 'user','index');
+        }
+         //ACTION ORDERING (*)
+         public function orderingAction(){
+            $this->_model->ordering($this->_arrParam);
+            URL::redirect( 'admin', 'user','index');
+        }
+    }

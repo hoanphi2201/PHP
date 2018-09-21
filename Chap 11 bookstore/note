@@ -1,0 +1,8 @@
+Quản lý user                        module user
+    - add edit delete
+    - list online
+Quản lý sách                        module book
+Quản lý đơn hàng                    module invoice
+Quản lý thông tin khách hàng        module client
+
+=> giao việc cho các lập trình viên
